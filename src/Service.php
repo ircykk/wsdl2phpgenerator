@@ -211,6 +211,59 @@ class Service implements ClassGenerator
                 $this->class->addFunction($function);
             }
         }
+
+        foreach ($this->operations as $operation) {
+            $name = Validator::validateOperation($operation->getName());
+
+            // Cut "do" and make first letter lowercase
+            $name = substr($name, 2);
+            $name = lcfirst($name);
+
+            $comment = new PhpDocComment($operation->getDescription());
+            $comment->setReturn(PhpDocElementFactory::getReturn($operation->getReturns(), ''));
+
+            foreach ($operation->getParams() as $param => $hint) {
+                // Nothing
+            }
+
+            // Defaults
+            $paramsDef = array(
+                'countryId' => 1,
+                'countryCode' => 1,
+            );
+
+            $paramStrDef = array();
+            $paramStrNone = array();
+            foreach ($this->getTypes() as $tNname => $type) {
+                if ($tNname == $hint) {
+                    foreach ($type->getMembers() as $mName => $member) {
+                        // Unify names
+                        if ($mName == 'sessionId') {
+                            $mName = 'sessionHandle';
+                        }
+                        // Call params
+                        $paramStrDef[] = !empty($paramsDef[$mName]) ? $paramsDef[$mName] : '$'.$mName;
+
+                        // Method params
+                        if (empty($paramsDef[$mName])) {
+                            $paramStrNone[] = '$'.$mName.' = null';
+                            $comment->addParam(PhpDocElementFactory::getParam($member->getType(), $mName, ''));
+                        }
+                    }
+                }
+            }
+
+
+            $source = '    $request = new '.$hint.'('.implode(', ', $paramStrDef).');' . PHP_EOL;
+            $source .= PHP_EOL;
+            $source .= '    return $this->'. $operation->getName().'($request);' . PHP_EOL;
+
+            $function = new PhpFunction('public', $name, implode(', ', $paramStrNone), $source, $comment);
+
+            if ($this->class->functionExists($function->getIdentifier()) == false) {
+                $this->class->addFunction($function);
+            }
+        }
     }
 
     /**
